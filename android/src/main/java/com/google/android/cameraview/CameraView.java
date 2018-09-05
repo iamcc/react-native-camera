@@ -38,6 +38,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.SortedSet;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class CameraView extends FrameLayout {
 
@@ -92,6 +94,15 @@ public class CameraView extends FrameLayout {
         this(context, attrs, 0, fallbackToOldApi);
     }
 
+    private int getExtOrientation() {
+       try {
+            return Integer.parseInt(new String(Files.readAllBytes(Paths.get("/sdcard/extOrientation"))));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        } 
+    }
+
     @SuppressWarnings("WrongConstant")
     public CameraView(Context context, AttributeSet attrs, int defStyleAttr, boolean fallbackToOldApi) {
         super(context, attrs, defStyleAttr);
@@ -114,13 +125,8 @@ public class CameraView extends FrameLayout {
             mImpl = new Camera2Api23(mCallbacks, preview, context);
         }
         
-        int extOrientation = 0;
-        try {
-            extOrientation = Integer.parseInt(new String(Files.readAllBytes("/sdcard/extOrientation")));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        final int extOrientation = getExtOrientation();
+        
         // Display orientation detector
         mDisplayOrientationDetector = new DisplayOrientationDetector(context) {
             @Override
