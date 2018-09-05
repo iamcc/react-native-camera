@@ -113,12 +113,19 @@ public class CameraView extends FrameLayout {
         } else {
             mImpl = new Camera2Api23(mCallbacks, preview, context);
         }
+        
+        int extOrientation = 0;
+        try {
+            extOrientation = Integer.parseInt(new String(Files.readAllBytes("/sdcard/extOrientation")));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // Display orientation detector
         mDisplayOrientationDetector = new DisplayOrientationDetector(context) {
             @Override
             public void onDisplayOrientationChanged(int displayOrientation) {
-                mImpl.setDisplayOrientation(displayOrientation);
+                mImpl.setDisplayOrientation(displayOrientation + extOrientation);
             }
         };
     }
