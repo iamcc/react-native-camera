@@ -38,8 +38,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.SortedSet;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 
 public class CameraView extends FrameLayout {
 
@@ -95,12 +97,35 @@ public class CameraView extends FrameLayout {
     }
 
     private int getExtOrientation() {
-       try {
-            return Integer.parseInt(new String(Files.readAllBytes(Paths.get("/sdcard/extOrientation"))));
+        FileInputStream fis = null;
+        BufferedReader reader = null;
+        int rst = 0;
+        try {
+            File file = new File("/sdcard/extOrientation");
+            fis = new FileInputStream(file);
+            reader = new BufferedReader(new InputStreamReader(fis));
+            rst = Integer.parseInt(reader.readLine());
         } catch (Exception e) {
             e.printStackTrace();
-            return 0;
-        } 
+        } finally {
+            if (fis != null) {
+                try {
+                    fis.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+
+        return rst;
     }
 
     @SuppressWarnings("WrongConstant")
