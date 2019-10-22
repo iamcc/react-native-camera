@@ -733,18 +733,6 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
     }
 
     @Override
-    void setDeviceOrientation(int deviceOrientation) {
-        if (mDeviceOrientation == deviceOrientation) {
-            return;
-        }
-        mDeviceOrientation = deviceOrientation;
-        if (isCameraOpened() && mOrientation == Constants.ORIENTATION_AUTO && !mIsRecording) {
-            mCameraParameters.setRotation(calcCameraRotation(deviceOrientation));
-            mCamera.setParameters(mCameraParameters);
-         }
-    }
-
-    @Override
     public void setPreviewTexture(SurfaceTexture surfaceTexture) {
         try {
             if (mCamera == null) {
@@ -938,6 +926,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
 
             List<Camera.Area> meteringAreas = new ArrayList<>();
             meteringAreas.add(new Camera.Area(rect, FOCUS_METERING_AREA_WEIGHT_DEFAULT));
+
             if (parameters.getMaxNumFocusAreas() != 0 && focusMode != null &&
                     (focusMode.equals(Camera.Parameters.FOCUS_MODE_AUTO) ||
                             focusMode.equals(Camera.Parameters.FOCUS_MODE_MACRO) ||
