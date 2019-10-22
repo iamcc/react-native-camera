@@ -1,7 +1,7 @@
 package org.reactnative.facedetector.tasks;
 
 import android.content.Context;
-import android.support.media.ExifInterface;
+import androidx.exifinterface.media.ExifInterface;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
@@ -148,7 +148,7 @@ public class FileFaceDetectionAsyncTask extends AsyncTask<Void, Void, Void> {
 
   private static RNFaceDetector detectorForOptions(ReadableMap options, Context context) {
     RNFaceDetector detector = new RNFaceDetector(context);
-    detector.setTrackingEnabled(false);
+    detector.setTracking(false);
 
     if(options.hasKey(MODE_OPTION_KEY)) {
       detector.setMode(options.getInt(MODE_OPTION_KEY));

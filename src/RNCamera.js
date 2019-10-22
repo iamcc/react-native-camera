@@ -16,26 +16,29 @@ import {
 
 import type { FaceFeature } from './FaceDetector';
 
+const Rationale = PropTypes.shape({
+  title: PropTypes.string.isRequired,
+  message: PropTypes.string.isRequired,
+  buttonPositive: PropTypes.string,
+  buttonNegative: PropTypes.string,
+  buttonNeutral: PropTypes.string,
+});
+
 const requestPermissions = async (
   captureAudio: boolean,
   CameraManager: any,
-  permissionDialogTitle?: string,
-  permissionDialogMessage?: string,
+  androidCameraPermissionOptions: Rationale,
+  androidRecordAudioPermissionOptions: Rationale,
 ): Promise<{ hasCameraPermissions: boolean, hasRecordAudioPermissions: boolean }> => {
   let hasCameraPermissions = false;
   let hasRecordAudioPermissions = false;
-
-  let params = undefined;
-  if (permissionDialogTitle || permissionDialogMessage) {
-    params = { title: permissionDialogTitle, message: permissionDialogMessage };
-  }
 
   if (Platform.OS === 'ios') {
     hasCameraPermissions = await CameraManager.checkVideoAuthorizationStatus();
   } else if (Platform.OS === 'android') {
     const cameraPermissionResult = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.CAMERA,
-      params,
+      androidCameraPermissionOptions,
     );
     if (typeof cameraPermissionResult === 'boolean') {
       hasCameraPermissions = cameraPermissionResult;
@@ -51,10 +54,10 @@ const requestPermissions = async (
       if (await CameraManager.checkIfRecordAudioPermissionsAreDefined()) {
         const audioPermissionResult = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          params,
+          androidRecordAudioPermissionOptions,
         );
         if (typeof audioPermissionResult === 'boolean') {
-          hasRecordAudioPermissions = audioPermissionResult
+          hasRecordAudioPermissions = audioPermissionResult;
         } else {
           hasRecordAudioPermissions = audioPermissionResult === PermissionsAndroid.RESULTS.GRANTED;
         }
@@ -96,6 +99,7 @@ type PictureOptions = {
   base64?: boolean,
   mirrorImage?: boolean,
   exif?: boolean,
+  writeExif?: boolean | { [name: string]: any },
   width?: number,
   fixOrientation?: boolean,
   forceUpOrientation?: boolean,
@@ -122,6 +126,96 @@ type TrackedTextFeature = {
   components: Array<TrackedTextFeature>,
 };
 
+type TrackedBarcodeFeature = {
+  bounds: {
+    size: {
+      width: number,
+      height: number,
+    },
+    origin: {
+      x: number,
+      y: number,
+    },
+  },
+  data: string,
+  dataRaw: string,
+  type: BarcodeType,
+  addresses?: {
+    addressesType?: 'UNKNOWN' | 'Work' | 'Home',
+    addressLines?: string[],
+  }[],
+  emails?: Email[],
+  phones?: Phone[],
+  urls: ?(string[]),
+  name?: {
+    firstName?: string,
+    lastName?: string,
+    middleName?: string,
+    prefix?: string,
+    pronounciation?: string,
+    suffix?: string,
+    formattedName?: string,
+  },
+  phone?: Phone,
+  organization?: string,
+  latitude?: number,
+  longitude?: number,
+  ssid?: string,
+  password?: string,
+  encryptionType?: string,
+  title?: string,
+  url?: string,
+  firstName?: string,
+  middleName?: string,
+  lastName?: string,
+  gender?: string,
+  addressCity?: string,
+  addressState?: string,
+  addressStreet?: string,
+  addressZip?: string,
+  birthDate?: string,
+  documentType?: string,
+  licenseNumber?: string,
+  expiryDate?: string,
+  issuingDate?: string,
+  issuingCountry?: string,
+  eventDescription?: string,
+  location?: string,
+  organizer?: string,
+  status?: string,
+  summary?: string,
+  start?: string,
+  end?: string,
+  email?: Email,
+  phoneNumber?: string,
+  message?: string,
+};
+
+type BarcodeType =
+  | 'EMAIL'
+  | 'PHONE'
+  | 'CALENDAR_EVENT'
+  | 'DRIVER_LICENSE'
+  | 'GEO'
+  | 'SMS'
+  | 'CONTACT_INFO'
+  | 'WIFI'
+  | 'TEXT'
+  | 'ISBN'
+  | 'PRODUCT';
+
+type Email = {
+  address?: string,
+  body?: string,
+  subject?: string,
+  emailType?: 'UNKNOWN' | 'Work' | 'Home',
+};
+
+type Phone = {
+  number?: string,
+  phoneType?: 'UNKNOWN' | 'Work' | 'Home' | 'Fax' | 'Mobile',
+};
+
 type RecordingOptions = {
   maxDuration?: number,
   maxFileSize?: number,
@@ -137,8 +231,16 @@ type EventCallbackArgumentsType = {
   nativeEvent: Object,
 };
 
+type Rect = {
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+};
+
 type PropsType = typeof View.props & {
   zoom?: number,
+  maxZoom?: number,
   ratio?: string,
   focusDepth?: number,
   type?: number | string,
@@ -146,8 +248,10 @@ type PropsType = typeof View.props & {
   onStatusChange?: Function,
   onBarCodeRead?: Function,
   onPictureSaved?: Function,
-  onGoogleVisionBarcodesDetected?: Function,
+  onGoogleVisionBarcodesDetected?: ({ barcodes: Array<TrackedBarcodeFeature> }) => void,
+  onSubjectAreaChanged?: ({ nativeEvent: { prevPoint: {| x: number, y: number |} } }) => void,
   faceDetectionMode?: number,
+  trackingEnabled?: boolean,
   flashMode?: number | string,
   exposure?: number,
   barCodeTypes?: Array<string>,
@@ -165,6 +269,7 @@ type PropsType = typeof View.props & {
   playSoundOnCapture?: boolean,
   videoStabilizationMode?: number | string,
   pictureSize?: string,
+  rectOfInterest: Rect,
 };
 
 type StateType = {
@@ -271,6 +376,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
   static propTypes = {
     ...ViewPropTypes,
     zoom: PropTypes.number,
+    maxZoom: PropTypes.number,
     ratio: PropTypes.string,
     focusDepth: PropTypes.number,
     onMountError: PropTypes.func,
@@ -281,6 +387,8 @@ export default class Camera extends React.Component<PropsType, StateType> {
     onGoogleVisionBarcodesDetected: PropTypes.func,
     onFacesDetected: PropTypes.func,
     onTextRecognized: PropTypes.func,
+    onSubjectAreaChanged: PropTypes.func,
+    trackingEnabled: PropTypes.bool,
     faceDetectionMode: PropTypes.number,
     faceDetectionLandmarks: PropTypes.number,
     faceDetectionClassifications: PropTypes.number,
@@ -288,6 +396,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
     googleVisionBarcodeType: PropTypes.number,
     googleVisionBarcodeMode: PropTypes.number,
     type: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    cameraId: PropTypes.string,
     flashMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     exposure: PropTypes.number,
     whiteBalance: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -295,6 +404,8 @@ export default class Camera extends React.Component<PropsType, StateType> {
     autoFocusPointOfInterest: PropTypes.shape({ x: PropTypes.number, y: PropTypes.number }),
     permissionDialogTitle: PropTypes.string,
     permissionDialogMessage: PropTypes.string,
+    androidCameraPermissionOptions: Rationale,
+    androidRecordAudioPermissionOptions: Rationale,
     notAuthorizedView: PropTypes.element,
     pendingAuthorizationView: PropTypes.element,
     captureAudio: PropTypes.bool,
@@ -303,17 +414,20 @@ export default class Camera extends React.Component<PropsType, StateType> {
     videoStabilizationMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     pictureSize: PropTypes.string,
     mirrorVideo: PropTypes.bool,
+    rectOfInterest: PropTypes.any,
     defaultVideoQuality: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   };
 
   static defaultProps: Object = {
     zoom: 0,
+    maxZoom: 0,
     ratio: '4:3',
     focusDepth: 0,
     type: CameraManager.Type.back,
+    cameraId: null,
     autoFocus: CameraManager.AutoFocus.on,
     flashMode: CameraManager.FlashMode.off,
-    exposure: 0,
+    exposure: -1,
     whiteBalance: CameraManager.WhiteBalance.auto,
     faceDetectionMode: (CameraManager.FaceDetection || {}).fast,
     barCodeTypes: Object.values(CameraManager.BarCodeType),
@@ -325,6 +439,14 @@ export default class Camera extends React.Component<PropsType, StateType> {
     faceDetectionClassifications: ((CameraManager.FaceDetection || {}).Classifications || {}).none,
     permissionDialogTitle: '',
     permissionDialogMessage: '',
+    androidCameraPermissionOptions: {
+      title: '',
+      message: '',
+    },
+    androidRecordAudioPermissionOptions: {
+      title: '',
+      message: '',
+    },
     notAuthorizedView: (
       <View style={styles.authorizationContainer}>
         <Text style={styles.notAuthorizedText}>Camera not authorized</Text>
@@ -386,6 +508,10 @@ export default class Camera extends React.Component<PropsType, StateType> {
       options.pauseAfterCapture = false;
     }
 
+    if (!this._cameraHandle) {
+      throw 'Camera handle cannot be null';
+    }
+
     return await CameraManager.takePicture(options, this._cameraHandle);
   }
 
@@ -394,6 +520,14 @@ export default class Camera extends React.Component<PropsType, StateType> {
       return await CameraManager.getSupportedRatios(this._cameraHandle);
     } else {
       throw new Error('Ratio is not supported on iOS');
+    }
+  }
+
+  async getCameraIdsAsync() {
+    if (Platform.OS === 'android') {
+      return await CameraManager.getCameraIds(this._cameraHandle);
+    } else {
+      return await CameraManager.getCameraIds(); // iOS does not need a camera instance
     }
   }
 
@@ -481,7 +615,10 @@ export default class Camera extends React.Component<PropsType, StateType> {
 
   _onStatusChange = () => {
     if (this.props.onStatusChange) {
-      this.props.onStatusChange({ cameraStatus: this.getStatus(), recordAudioPermissionStatus: this.state.recordAudioPermissionStatus });
+      this.props.onStatusChange({
+        cameraStatus: this.getStatus(),
+        recordAudioPermissionStatus: this.state.recordAudioPermissionStatus,
+      });
     }
   };
 
@@ -493,7 +630,6 @@ export default class Camera extends React.Component<PropsType, StateType> {
 
   _onObjectDetected = (callback: ?Function) => ({ nativeEvent }: EventCallbackArgumentsType) => {
     const { type } = nativeEvent;
-
     if (
       this._lastEvents[type] &&
       this._lastEventsTimes[type] &&
@@ -507,6 +643,12 @@ export default class Camera extends React.Component<PropsType, StateType> {
       callback(nativeEvent);
       this._lastEventsTimes[type] = new Date();
       this._lastEvents[type] = JSON.stringify(nativeEvent);
+    }
+  };
+
+  _onSubjectAreaChanged = e => {
+    if (this.props.onSubjectAreaChanged) {
+      this.props.onSubjectAreaChanged(e);
     }
   };
 
@@ -525,12 +667,39 @@ export default class Camera extends React.Component<PropsType, StateType> {
   }
 
   async arePermissionsGranted() {
+    const {
+      permissionDialogTitle,
+      permissionDialogMessage,
+      androidCameraPermissionOptions,
+      androidRecordAudioPermissionOptions,
+    } = this.props;
+
+    let cameraPermissions = androidCameraPermissionOptions;
+    let audioPermissions = androidRecordAudioPermissionOptions;
+    if (permissionDialogTitle || permissionDialogMessage) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'permissionDialogTitle and permissionDialogMessage are deprecated. Please use androidCameraPermissionOptions instead.',
+      );
+      cameraPermissions = {
+        ...cameraPermissions,
+        title: permissionDialogTitle,
+        message: permissionDialogMessage,
+      };
+      audioPermissions = {
+        ...audioPermissions,
+        title: permissionDialogTitle,
+        message: permissionDialogMessage,
+      };
+    }
+
     const { hasCameraPermissions, hasRecordAudioPermissions } = await requestPermissions(
       this.props.captureAudio,
       CameraManager,
-      this.props.permissionDialogTitle,
-      this.props.permissionDialogMessage,
+      cameraPermissions,
+      audioPermissions,
     );
+
     const recordAudioPermissionStatus = hasRecordAudioPermissions
       ? RecordAudioPermissionStatusEnum.AUTHORIZED
       : RecordAudioPermissionStatusEnum.NOT_AUTHORIZED;
@@ -562,11 +731,14 @@ export default class Camera extends React.Component<PropsType, StateType> {
       return;
     }
 
-    this.setState({
-      isAuthorized: hasCameraPermissions,
-      isAuthorizationChecked: true,
-      recordAudioPermissionStatus,
-    }, this._onStatusChange);
+    this.setState(
+      {
+        isAuthorized: hasCameraPermissions,
+        isAuthorizationChecked: true,
+        recordAudioPermissionStatus,
+      },
+      this._onStatusChange,
+    );
   }
 
   getStatus = (): Status => {
@@ -610,6 +782,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
             onFacesDetected={this._onObjectDetected(this.props.onFacesDetected)}
             onTextRecognized={this._onObjectDetected(this.props.onTextRecognized)}
             onPictureSaved={this._onPictureSaved}
+            onSubjectAreaChanged={this._onSubjectAreaChanged}
           />
           {this.renderChildren()}
         </View>
@@ -641,9 +814,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
     }
 
     if (Platform.OS === 'ios') {
-      delete newProps.googleVisionBarcodeType;
       delete newProps.googleVisionBarcodeMode;
-      delete newProps.googleVisionBarcodeDetectorEnabled;
       delete newProps.ratio;
     }
 
@@ -678,6 +849,7 @@ const RNCamera = requireNativeComponent('RNCamera', Camera, {
     onFaceDetected: true,
     onLayout: true,
     onMountError: true,
+    onSubjectAreaChanged: true,
     renderToHardwareTextureAndroid: true,
     testID: true,
   },
